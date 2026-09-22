@@ -113,3 +113,82 @@ public:
         }
     }
 };
+
+// ---------------------------------------------------------
+// RunSession = THE INVARIANT
+// Only knows the phase order. No scoring/reward/input logic here.
+// ---------------------------------------------------------
+class RunSession {
+private:
+    IInputGenerator* inputGen;
+    IScoringRule*    scoringRule;
+    IRewardRule*     rewardRule;
+    ShopSystem*      shop;
+    int money;
+    int totalRounds;
+
+public:
+    RunSession(IInputGenerator* ig, IScoringRule* sr, IRewardRule* rr,
+               ShopSystem* s, int rounds = 3)
+        : inputGen(ig), scoringRule(sr), rewardRule(rr), shop(s),
+          money(0), totalRounds(rounds) {}
+
+    void run() {
+        cout << "=== RUN START ===" << endl;
+
+        for (int round = 1; round <= totalRounds; ++round) {
+            cout << "\nRound " << round << endl;
+
+            // 1. Generate input
+            TurnInput input = inputGen->generate(round);
+            cout << "[PLAY] input generated: " << input.value << endl;
+
+            // 2. Compute base score
+            int baseScore = scoringRule->computeBaseScore(input);
+            cout << "[SCORE] base score: " << baseScore << endl;
+
+            // 3. Compute reward
+            int reward = rewardRule->computeReward(baseScore, round);
+
+            // 4. Update money
+            money += reward;
+            cout << "[REWARD] gain: " << reward << " | money: " << money << endl;
+
+            // 5. Shop phase
+            shop->offer(money);
+
+            // 6. Advance round (handled by the for-loop itself)
+        }
+
+        cout << "\n=== RUN END ===" << endl;
+        cout << "Final money: " << money << endl;
+    }
+};
+
+// ---------------------------------------------------------
+// main(): lets the user DECIDE which mutable parts to plug in.
+// RunSession's code never changes based on these choices.
+// ---------------------------------------------------------
+int main() {
+    srand((unsigned int)time(nullptr));
+
+    // Mutable parts are wired here directly (no selection menu).
+    // Swap these two lines to switch generator/reward strategy —
+    // RunSession itself never has to change.
+    IInputGenerator* inputGen  = new RandomInputGenerator();   // Modification 1
+    IRewardRule*     rewardRule = new BonusRewardRule();       // Modification 2A
+    IScoringRule*    scoringRule = new SimpleScoringRule();
+    ShopSystem*      shop = new ShopSystem();
+
+    // RunSession is built once and its logic NEVER depends on which
+    // concrete classes were plugged in above.
+    RunSession session(inputGen, scoringRule, rewardRule, shop, 3);
+    session.run();
+
+    delete inputGen;
+    delete scoringRule;
+    delete rewardRule;
+    delete shop;
+
+    return 0;
+}
